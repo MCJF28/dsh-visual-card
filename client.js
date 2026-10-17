@@ -69,7 +69,7 @@ window.__ModuleLoader__.load({
 .dshv-stage{
   display:block;
   width:100%;
-  /* 高度由内联 style 给出（内容自适应 + min(…, 62vh) 封顶），这里不设固定值。 */
+  /* 高度由内联 style 给出（内容自适应 + 视口百分比封顶），这里不设固定值。 */
   border:0;
   background:var(--dsw-alias-bg-base);
   box-sizing:border-box;
@@ -437,13 +437,14 @@ document.addEventListener('keydown', function (e) {
           // 高度规则：
           //   模型指定了 height → 用指定值；
           //   没指定 → 用实测的内容高度，内容多高就多高；
-          //   两者都再用 min(…, 62vh) 夹一次 —— 卡片再高也不该超出一屏，
-          //   超过就只在卡片内部滚动，不逼用户滚动整个对话才能看全。
+          //   两者都再用 min(…, 上限vh) 夹一次 —— 上限默认 50%，
+          //   因为卡片自身还有标题栏、对话底部还有工具栏，加起来才是一屏；
+          //   超过上限就只在卡片内部滚动，不逼用户滚动整个对话才能看全。
           style: (() => {
             const wanted = typeof props.height === 'number' && props.height > 0
               ? props.height
               : (contentHeight > 0 ? contentHeight : 240)
-            const pct = typeof props.maxHeightPercent === 'number' ? props.maxHeightPercent : 62
+            const pct = typeof props.maxHeightPercent === 'number' ? props.maxHeightPercent : 50
             return { height: `min(${Math.max(120, Math.round(wanted))}px, ${pct}vh)` }
           })(),
           title,
@@ -471,7 +472,7 @@ document.addEventListener('keydown', function (e) {
       const [cards, setCards] = useState([])
       // 脚本开关与高度上限由 Host 随卡片一起下发，客户端不另外拉一次设置。
       const [allowScripts, setAllowScripts] = useState(true)
-      const [maxHeightPercent, setMaxHeightPercent] = useState(62)
+      const [maxHeightPercent, setMaxHeightPercent] = useState(50)
 
       useEffect(() => {
         if (sessionId === undefined || turn === undefined) {

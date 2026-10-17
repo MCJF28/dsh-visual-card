@@ -38,15 +38,18 @@ const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Cache
 /**
  * 设置项。
  *
- *   maxHeightPercent —— 卡片高度上限（占视口百分比）。内容多高就多高，
+ *   maxHeightPercent —— 卡片内容区的高度上限（占视口百分比）。内容多高就多高，
  *                      但再高也不该逼用户滚动整个对话才看得到全貌；
- *                      超过这个比例就只在卡片内部滚动；
+ *                      超过这个比例就只在卡片内部滚动。
+ *                      默认 50 而不是更高：这个比例只管内容区，实际还会叠加
+ *                      卡片自己的标题栏（全屏/复制/下载）和对话底部的工具栏，
+ *                      取 62 时两者相加刚好把一屏占满，底部按钮被挤出视口；
  *   allowScripts     —— 脚本能跑小游戏，但也是唯一的安全风险来源，必须可关；
  *   keepTurns        —— cards.json 会随使用一直长，给用户一个上限；
  *   maxPerTurn       —— 一轮里模型可能连着画七八张，超出部分挤在一起看不清。
  */
 const DEFAULT_SETTINGS = {
-  maxHeightPercent: 62,
+  maxHeightPercent: 50,
   allowScripts: true,
   keepTurns: 200,
   maxPerTurn: 20,
@@ -54,7 +57,7 @@ const DEFAULT_SETTINGS = {
 
 /** 数值型设置的合法区间，保存时统一夹紧。 */
 const LIMITS = {
-  maxHeightPercent: [40, 100],
+  maxHeightPercent: [30, 100],
   keepTurns: [10, 2000],
   maxPerTurn: [1, 50],
 }
