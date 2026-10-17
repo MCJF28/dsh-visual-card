@@ -70,11 +70,23 @@ render_visual({
 
 ## 安装
 
+**推荐用 DSH 内置插件安装程序。** 打开「设置 → 内置插件」，在安装输入框里粘贴下面这一串（就是 `pnpm add` 后面的地址），点安装，再重启应用：
+
+```
+github:MCJF28/dsh-visual-card
+```
+
+安装程序会自动把包写进 `dsh.profile.bundles`，不用手动改任何文件。
+
+习惯命令行的话：先完全退出应用，再在 profile 目录执行
+
 ```bash
+cd ~/.dsh/profiles/desktop
 pnpm add github:MCJF28/dsh-visual-card
 ```
 
-装完在 `dsh.profile.bundles` 里加上 `dsh-visual-card`，然后重启应用。
+然后把包名加进 `dsh.profile.bundles`，重启应用。
+
 
 ## 安全说明
 
@@ -159,11 +171,23 @@ Deleting the directory only loses visual history; functionality is unaffected.
 
 ## Install
 
+**The built-in plugin installer is the recommended way.** Open Settings → Built-in Plugins, paste the string below into the install box — it is exactly what follows `pnpm add` — then press install and restart the app:
+
+```
+github:MCJF28/dsh-visual-card
+```
+
+The installer writes the package into `dsh.profile.bundles` for you; no manual file edits.
+
+Prefer the command line? Quit the app completely first, then from the profile directory:
+
 ```bash
+cd ~/.dsh/profiles/desktop
 pnpm add github:MCJF28/dsh-visual-card
 ```
 
-Then add `dsh-visual-card` to `dsh.profile.bundles` and restart the app.
+Add the package name to `dsh.profile.bundles` yourself and restart the app.
+
 
 ## Security
 
