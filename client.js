@@ -27,7 +27,7 @@
 if (!window.__dshVisualCardRegistered) {
   window.__dshVisualCardRegistered = true
   window.__ModuleLoader__.load({
-  id: 'dsh-visual',
+  id: 'dsh-visual-card',
   factory(require) {
     const React = require('react')
     const h = React.createElement
@@ -945,14 +945,14 @@ button[data-${NAV_ATTR}="${NAV_VALUE}"]::before{
 
         ctx.slots.inject('conversation.chat.turnTail', () => ctx.slots.register({
           name: 'conversation.chat.turnTail',
-          id: 'dsh-visual-turn',
+          id: 'dsh-visual-card-turn',
           order: 50,
           label: () => '可视化',
         }, TurnVisuals))
 
         ctx.slots.inject('settings.section', () => ctx.slots.register({
           name: 'settings.section',
-          id: 'dsh-visual',
+          id: 'dsh-visual-card',
           order: 47,
           label: () => '可视化',
         }, SettingsPage))
