@@ -1,0 +1,19 @@
+# 依赖
+node_modules/
+pnpm-lock.yaml
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# 日志与临时产物
+*.log
+*.tmp
+
+# 本地配置（可能含密钥或本机路径）
+.env
+.env.*
+*.local.json

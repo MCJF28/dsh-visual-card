@@ -1,0 +1,45 @@
+{
+  "name": "dsh-visual",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "可视化回答：AI 生成一段 HTML，在对话中以沙箱卡片渲染，支持交互按钮；配色自动跟随当前主题。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "visual",
+    "html"
+  ],
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MCJF28/dsh-visual.git"
+  },
+  "homepage": "https://github.com/MCJF28/dsh-visual",
+  "bugs": {
+    "url": "https://github.com/MCJF28/dsh-visual/issues"
+  },
+  "author": "MCJF28"
+}
