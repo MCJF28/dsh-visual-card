@@ -21,8 +21,7 @@
     "client.js",
     "cordis.patch.yml",
     "README.md",
-    "LICENSE",
-    "README.zh.md"
+    "LICENSE"
   ],
   "dsh": {
     "bundle": {
