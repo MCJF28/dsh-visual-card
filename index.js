@@ -201,13 +201,45 @@ loadSettings()
 loadStore()
 
 export function apply(ctx) {
+  /*
+   * 重复加载的自我保护。
+   *
+   * 这个插件可能因为 bundle 与 patch 各生成一个 entry 而被加载两次。
+   * webServer.register 遇到同名路由会直接抛错，而一个 entry 抛错就会让整个
+   * web boot 失败、应用起不来 —— 代价太大。
+   * 所以把「重复」当成可预期情况吞掉：第二次注册跳过，功能由第一次的实例提供，
+   * 用户最多看不到重复的卡片，而不是打不开应用。
+   */
+  const isDuplicate = (error) => {
+    const message = String(error?.message ?? error)
+    return message.includes('duplicate') || message.includes('already')
+  }
+
+  const safeRoute = (route) => {
+    try {
+      return ctx.webServer.register(route)
+    } catch (error) {
+      if (!isDuplicate(error)) throw error
+      return () => {}
+    }
+  }
+
+  const safeCommand = (definition) => {
+    try {
+      return ctx.commands.register(definition)
+    } catch (error) {
+      if (!isDuplicate(error)) throw error
+      return () => {}
+    }
+  }
+
   /**
    * `/visual`：查看卡片存储情况。
    *
    * 命令只做「查询并回报」，不做设置修改 —— 改上限、清空都要点界面，
    * 在命令里做会绕过二次确认，清空历史尤其不能一键发生。
    */
-  ctx.commands.register({
+  safeCommand({
     name: 'visual',
     description: '查看可视化卡片的存储占用',
     handler: () => {
@@ -342,7 +374,7 @@ export function apply(ctx) {
   })
 
   // 客户端按 session + turn 取卡片。
-  ctx.webServer.register({
+  safeRoute({
     kind: 'exact',
     path: '/dsh-visual/cards',
     handler: async (req, res) => {
@@ -373,7 +405,7 @@ export function apply(ctx) {
   })
 
   // 设置读写。
-  ctx.webServer.register({
+  safeRoute({
     kind: 'exact',
     path: '/dsh-visual/settings',
     handler: async (req, res) => {
@@ -403,7 +435,7 @@ export function apply(ctx) {
   })
 
   // 清空历史卡片：只删卡片数据，不动设置。
-  ctx.webServer.register({
+  safeRoute({
     kind: 'exact',
     path: '/dsh-visual/clear',
     handler: async (req, res) => {

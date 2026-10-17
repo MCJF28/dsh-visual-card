@@ -17,7 +17,16 @@
  * 安全边界：脚本运行在宿主页面里（非沙箱），这是使用方要求的能力。
  */
 
-window.__ModuleLoader__.load({
+/*
+ * 防重复注册。
+ *
+ * 这个插件可能被加载两次（bundle 与 patch 各一个 entry）。若两次都执行
+ * ModuleLoader.load，模块与插槽会各注册一份，客户端直接报 import 失败。
+ * 用一个全局标记让第二次静默跳过：功能由第一次的注册提供。
+ */
+if (!window.__dshVisualCardRegistered) {
+  window.__dshVisualCardRegistered = true
+  window.__ModuleLoader__.load({
   id: 'dsh-visual',
   factory(require) {
     const React = require('react')
@@ -951,3 +960,4 @@ button[data-${NAV_ATTR}="${NAV_VALUE}"]::before{
     }
   },
 })
+}
