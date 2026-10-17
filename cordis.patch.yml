@@ -1,4 +1,4 @@
-# dsh-visual —— bundle patch
+# dsh-visual-card —— bundle patch
 - insert:
-    - id: dsh-visual
-      name: dsh-visual
+    - id: dsh-visual-card
+      name: dsh-visual-card

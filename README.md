@@ -1,4 +1,4 @@
-# dsh-visual
+# dsh-visual-card
 
 可视化回答插件：AI 交一段 HTML，在对话里渲染成一个**可交互的窗口**——能点、能用键盘操作、能全屏、能导出。
 
@@ -67,10 +67,10 @@ render_visual({
 ## 安装
 
 ```bash
-pnpm add github:MCJF28/dsh-visual
+pnpm add github:MCJF28/dsh-visual-card
 ```
 
-装完在 `dsh.profile.bundles` 里加上 `dsh-visual`，然后重启应用。
+装完在 `dsh.profile.bundles` 里加上 `dsh-visual-card`，然后重启应用。
 
 ## 安全说明
 
