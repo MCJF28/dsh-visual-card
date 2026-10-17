@@ -69,7 +69,7 @@ window.__ModuleLoader__.load({
 .dshv-stage{
   display:block;
   width:100%;
-  height:var(--dshv-h, 320px);
+  /* 高度由内联 style 给出（内容自适应 + min(…, 62vh) 封顶），这里不设固定值。 */
   border:0;
   background:var(--dsw-alias-bg-base);
   box-sizing:border-box;
@@ -77,7 +77,7 @@ window.__ModuleLoader__.load({
 /* 全屏：卡片铺满视口，内容区吃掉标题栏以外的全部空间。 */
 .dshv-win:fullscreen{width:100vw;height:100vh;border-radius:0;border:0}
 .dshv-win:fullscreen .dshv-bar{flex:none}
-.dshv-win:fullscreen .dshv-stage{height:auto;flex:1;min-height:0;width:100%}
+.dshv-win:fullscreen .dshv-stage{height:auto !important;flex:1;min-height:0;width:100%}
 /* 全屏时隐藏焦点提示：此时键盘一定归窗口，没必要再提示。 */
 .dshv-win:fullscreen .dshv-focus-hint{display:none}
 `
@@ -217,6 +217,14 @@ font-size:13px;line-height:1.6;background:#1a1a1a;color:#e6e6e6}
       const winRef = useRef(null)
       const [focused, setFocused] = useState(false)
       const [toast, setToast] = useState(null)
+      /**
+       * 内容实测高度。
+       *
+       * 模型没指定高度时，卡片高度应当由内容自己决定 —— 宽度固定后，
+       * 一段话多高就是多高，不该硬套一个 360px 的框。
+       * 写入后立刻量一次，再在图片/字体加载完的 120ms、500ms 各补量一次。
+       */
+      const [contentHeight, setContentHeight] = useState(0)
       // 设置里关掉脚本时，写入前就把脚本与内联事件剥离，彻底不执行。
       const rawHtml = typeof props.html === 'string' ? props.html : ''
       const html = props.allowScripts === false ? stripScripts(rawHtml) : rawHtml
@@ -264,7 +272,9 @@ html,body{
   color:var(--v-text,${fb.text});
   font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
   font-size:14px;line-height:1.7;
-  width:100%;min-height:100vh;
+  width:100%;
+  /* 刻意不设 min-height:100vh —— 那会让 content 永远至少填满 iframe，
+     父级就测不出内容的真实高度，"按内容自动定高"也就无从谈起。 */
 }
 /* 段落与次要文字也显式设色，避免继承到不可见颜色。 */
 h1,h2,h3,h4,h5,h6,p,span,div,li,td,th,label{color:inherit}
@@ -293,7 +303,30 @@ document.addEventListener('keydown', function (e) {
 </body></html>`)
         doc.close()
 
+        // 写入后量一次内容高度，并在图片/字体加载完成的稍后时刻补量。
+        const measure = () => {
+          try {
+            const d = frame.contentDocument
+            if (d === null) return
+            // 用 body 的盒高，而不是 documentElement.scrollHeight：
+            // 后者在内容比 iframe 矮时会返回视口高度（元素撑满视口），
+            // 那样永远测不到「内容其实只有 100px」，自动定高就失效了。
+            const body = d.body
+            const h = body === null || body === undefined
+              ? 0
+              : Math.ceil(body.getBoundingClientRect().height)
+            if (h > 0) setContentHeight(h)
+          } catch {
+            /* 量不到就保持原值 */
+          }
+        }
+        measure()
+        const at1 = setTimeout(measure, 120)
+        const at2 = setTimeout(measure, 500)
+
         return () => {
+          clearTimeout(at1)
+          clearTimeout(at2)
           try {
             doc.open()
             doc.write('')
@@ -401,7 +434,18 @@ document.addEventListener('keydown', function (e) {
         h('iframe', {
           ref: frameRef,
           className: 'dshv-stage',
-          style: { '--dshv-h': `${props.height}px` },
+          // 高度规则：
+          //   模型指定了 height → 用指定值；
+          //   没指定 → 用实测的内容高度，内容多高就多高；
+          //   两者都再用 min(…, 62vh) 夹一次 —— 卡片再高也不该超出一屏，
+          //   超过就只在卡片内部滚动，不逼用户滚动整个对话才能看全。
+          style: (() => {
+            const wanted = typeof props.height === 'number' && props.height > 0
+              ? props.height
+              : (contentHeight > 0 ? contentHeight : 240)
+            const pct = typeof props.maxHeightPercent === 'number' ? props.maxHeightPercent : 62
+            return { height: `min(${Math.max(120, Math.round(wanted))}px, ${pct}vh)` }
+          })(),
           title,
           // 显式设置 tabIndex，确保点击后浏览器会把焦点移到这个 iframe 元素上，
           // 状态检测依赖 document.activeElement === frame。
@@ -425,8 +469,9 @@ document.addEventListener('keydown', function (e) {
       const sessionId = typeof props.sessionId === 'string' ? props.sessionId : undefined
       const turn = props.turn && typeof props.turn.turn === 'number' ? props.turn.turn : undefined
       const [cards, setCards] = useState([])
-      // 脚本开关由 Host 随卡片一起下发，客户端不另外拉一次设置。
+      // 脚本开关与高度上限由 Host 随卡片一起下发，客户端不另外拉一次设置。
       const [allowScripts, setAllowScripts] = useState(true)
+      const [maxHeightPercent, setMaxHeightPercent] = useState(62)
 
       useEffect(() => {
         if (sessionId === undefined || turn === undefined) {
@@ -444,6 +489,7 @@ document.addEventListener('keydown', function (e) {
             const data = await response.json()
             if (!alive || !data || !Array.isArray(data.cards)) return
             if (data.allowScripts === false) setAllowScripts(false)
+            if (typeof data.maxHeightPercent === 'number') setMaxHeightPercent(data.maxHeightPercent)
             setCards((previous) => {
               // 内容没变就保持同一引用，避免重渲染打断窗口里的交互。
               if (previous.length === data.cards.length) {
@@ -482,6 +528,7 @@ document.addEventListener('keydown', function (e) {
           html: card.html,
           height: card.height,
           allowScripts,
+          maxHeightPercent,
         }))
       )
     }
@@ -504,7 +551,6 @@ document.addEventListener('keydown', function (e) {
 .dshv-card{
   padding:14px 16px;
   border:1px solid var(--dsw-alias-border-l1);
-  border-left:2px solid var(--dsw-alias-brand-primary);
   border-radius:var(--dsw-radius-panel);
   background:var(--dsw-alias-bg-layer-1);
   display:flex;flex-direction:column;gap:10px;
@@ -523,29 +569,25 @@ document.addEventListener('keydown', function (e) {
   font:inherit;font-size:13px;text-align:right;
 }
 .dshv-num:focus{outline:none;border-color:var(--dsw-alias-brand-primary)}
-/* 开关 */
+/* 开关：参数照抄原厂设置页的（40×24 / 圆点 20 / 位移 16）。 */
 .dshv-switch{
-  appearance:none;flex:none;position:relative;
-  width:44px;height:24px;padding:0;
-  border:1px solid var(--dsw-alias-border-l2);
-  border-radius:999px;
-  background:var(--dsw-alias-bg-layer-2);
+  position:relative;flex:none;
+  width:40px;height:24px;padding:0;
+  border:0;border-radius:999px;
+  background:var(--dsw-alias-border-l2);
   cursor:pointer;
-  transition:background-color .15s,border-color .15s;
+  transition:background-color .15s;
 }
-.dshv-switch[data-on="true"]{
-  background:var(--dsw-alias-brand-primary);
-  border-color:var(--dsw-alias-brand-primary);
-}
+.dshv-switch[aria-checked="true"]{background:var(--dsw-alias-state-business-primary)}
 .dshv-switch:disabled{opacity:.5;cursor:default}
 .dshv-knob{
   position:absolute;top:2px;left:2px;
-  width:18px;height:18px;border-radius:999px;
+  width:20px;height:20px;border-radius:999px;
   background:#fff;
-  box-shadow:0 1px 2px rgba(0,0,0,.25);
+  box-shadow:0 1px 2px rgba(0,0,0,.2);
   transition:transform .15s;
 }
-.dshv-switch[data-on="true"] .dshv-knob{transform:translateX(20px)}
+.dshv-switch[aria-checked="true"] .dshv-knob{transform:translateX(16px)}
 /* 按钮 */
 .dshv-btn{
   appearance:none;height:32px;padding:0 14px;flex:none;
@@ -565,14 +607,13 @@ document.addEventListener('keydown', function (e) {
 .dshv-status[data-kind="err"]{color:var(--dsw-alias-state-error-primary)}
 `
 
-    /** 开关。 */
+    /** 开关：与原厂设置页同款（40×24，aria-checked 驱动）。 */
     function Switch(props) {
       return h('button', {
         type: 'button',
         className: 'dshv-switch',
         role: 'switch',
         'aria-checked': props.value === true,
-        'data-on': props.value === true ? 'true' : 'false',
         disabled: props.disabled === true,
         onClick: () => props.onChange(props.value !== true),
         title: props.title,
@@ -711,17 +752,17 @@ document.addEventListener('keydown', function (e) {
           h('div', { className: 'dshv-sec-title' }, '卡片外观'),
           h('div', { className: 'dshv-card' },
             h(Row, {
-              name: '默认高度',
-              desc: `模型没有指定高度时用这个值（${lim.defaultHeight[0]}–${lim.defaultHeight[1]} 像素）。`
-                + '内容偏多时调大，能少一次滚动。',
+              name: '高度上限',
+              desc: '卡片高度按内容自动决定；超过这个比例时改成卡片内部滚动，'
+                + `不让你为了看全貌去滚动整个对话（${lim.maxHeightPercent[0]}–${lim.maxHeightPercent[1]}% 视口高度）。`,
             }, h('input', {
               type: 'number',
               className: 'dshv-num',
-              value: s.defaultHeight,
-              min: lim.defaultHeight[0],
-              max: lim.defaultHeight[1],
-              step: 20,
-              onChange: num('defaultHeight'),
+              value: s.maxHeightPercent,
+              min: lim.maxHeightPercent[0],
+              max: lim.maxHeightPercent[1],
+              step: 2,
+              onChange: num('maxHeightPercent'),
             }))
           )
         ),

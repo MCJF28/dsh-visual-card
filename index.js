@@ -38,14 +38,15 @@ const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Cache
 /**
  * 设置项。
  *
- * 每一项都对应一个真实会踩到的场景，不做纯装饰性的开关：
- *   defaultHeight —— 300 字左右的卡片 320px 常常要滚动，按常用内容给个更顺手的默认值；
- *   allowScripts  —— 脚本能跑小游戏，但也是唯一的安全风险来源，必须可关；
- *   keepTurns     —— cards.json 会随使用一直长，给用户一个上限；
- *   maxPerTurn    —— 一轮里模型可能连着画七八张，超出部分挤在一起看不清。
+ *   maxHeightPercent —— 卡片高度上限（占视口百分比）。内容多高就多高，
+ *                      但再高也不该逼用户滚动整个对话才看得到全貌；
+ *                      超过这个比例就只在卡片内部滚动；
+ *   allowScripts     —— 脚本能跑小游戏，但也是唯一的安全风险来源，必须可关；
+ *   keepTurns        —— cards.json 会随使用一直长，给用户一个上限；
+ *   maxPerTurn       —— 一轮里模型可能连着画七八张，超出部分挤在一起看不清。
  */
 const DEFAULT_SETTINGS = {
-  defaultHeight: 360,
+  maxHeightPercent: 62,
   allowScripts: true,
   keepTurns: 200,
   maxPerTurn: 20,
@@ -53,7 +54,7 @@ const DEFAULT_SETTINGS = {
 
 /** 数值型设置的合法区间，保存时统一夹紧。 */
 const LIMITS = {
-  defaultHeight: [160, 900],
+  maxHeightPercent: [40, 100],
   keepTurns: [10, 2000],
   maxPerTurn: [1, 50],
 }
@@ -69,7 +70,11 @@ function clampInt(value, fallback, [min, max]) {
 function normalizeSettings(input) {
   const raw = input !== null && typeof input === 'object' ? input : {}
   return {
-    defaultHeight: clampInt(raw.defaultHeight, DEFAULT_SETTINGS.defaultHeight, LIMITS.defaultHeight),
+    maxHeightPercent: clampInt(
+      raw.maxHeightPercent,
+      DEFAULT_SETTINGS.maxHeightPercent,
+      LIMITS.maxHeightPercent,
+    ),
     allowScripts: raw.allowScripts !== false,
     keepTurns: clampInt(raw.keepTurns, DEFAULT_SETTINGS.keepTurns, LIMITS.keepTurns),
     maxPerTurn: clampInt(raw.maxPerTurn, DEFAULT_SETTINGS.maxPerTurn, LIMITS.maxPerTurn),
@@ -226,7 +231,8 @@ export function apply(ctx) {
       },
       height: {
         type: 'integer',
-        description: '卡片高度像素，省略时用设置里的默认值。',
+        description: '可选。不给就让卡片按内容自动定高（推荐）。'
+          + '只有内容高度明显不合预期时才显式指定，单位像素。',
       },
     },
     output: {
@@ -235,7 +241,8 @@ export function apply(ctx) {
         additionalProperties: false,
         properties: {
           title: { type: 'string', required: true },
-          height: { type: 'integer', required: true },
+          // 不给高度时这个字段不出现，客户端据此走「按内容自动定高」。
+          height: { type: 'integer' },
           html: { type: 'string', required: true },
         },
       },
@@ -249,13 +256,17 @@ export function apply(ctx) {
       if (html.length > MAX_HTML_CHARS) {
         throw new Error(`html 过长（${html.length} 字符），请精简到 ${MAX_HTML_CHARS} 以内`)
       }
-      // 没给高度就用设置里的默认值；给了就夹到合法区间。
-      const height = clampInt(args.height, settings.defaultHeight, LIMITS.defaultHeight)
+
+      // 高度：模型给了就用（夹到合理区间），没给就不下发 —— 客户端会按内容实测高度。
+      const rawHeight = Number(args.height)
+      const height = Number.isFinite(rawHeight) && rawHeight > 0
+        ? Math.min(900, Math.max(120, Math.round(rawHeight)))
+        : undefined
 
       const value = {
         title: String(args.title ?? '可视化').slice(0, 200),
-        height,
         html,
+        ...(height === undefined ? {} : { height }),
       }
 
       // 挂到本轮上，供 turnTail 槽位渲染在正文下方。
@@ -315,8 +326,13 @@ export function apply(ctx) {
           : []
 
         res.writeHead(200, JSON_HEADERS)
-        // allowScripts 随卡片下发，客户端据此决定要不要执行卡片里的脚本。
-        res.end(JSON.stringify({ ok: true, cards, allowScripts: settings.allowScripts }))
+        // allowScripts / maxHeightPercent 随卡片下发，客户端据此决定脚本开关与高度封顶。
+        res.end(JSON.stringify({
+          ok: true,
+          cards,
+          allowScripts: settings.allowScripts,
+          maxHeightPercent: settings.maxHeightPercent,
+        }))
       } catch (error) {
         res.writeHead(400, JSON_HEADERS)
         res.end(JSON.stringify({ ok: false, error: String(error?.message ?? error) }))
