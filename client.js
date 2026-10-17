@@ -844,9 +844,96 @@ document.addEventListener('keydown', function (e) {
       )
     }
 
+    // ── 设置导航图标 ──────────────────────────────────────────────────────
+
+    /*
+     * 宿主的设置导航按 section id 硬编码图标，只认 account / models /
+     * agent-presets / plugins / archived-sessions 五个，其余一律给齿轮；
+     * 而 settings.section 的注册接口没有 icon 字段。
+     *
+     * 所以自己换：给导航行打 data 属性，再用 mask-image 盖掉默认齿轮。
+     * 用 mask 而非 background-image，是为了让颜色跟随 currentColor ——
+     * 选中时文字变蓝，图标自动跟着变蓝。
+     */
+    const NAV_ATTR = 'dshnav'
+    const NAV_VALUE = 'dsh-visual'
+    const NAV_LABEL = '可视化'
+
+    /** 画框图标（框 + 太阳 + 山线）：直接对应「一张可视化画面」。 */
+    const NAV_MASK = 'url("data:image/svg+xml,'
+      + encodeURIComponent(
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' "
+        + "stroke='#000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'>"
+        + "<rect x='3' y='4.5' width='18' height='15' rx='2.5'/>"
+        + "<circle cx='8.2' cy='9.4' r='1.5'/>"
+        + "<path d='M3.6 17.2L8.8 12l4 4 3.4-3.4 4.2 4.2'/>"
+        + '</svg>',
+      )
+      + '")'
+
+    const NAV_CSS = `
+button[data-${NAV_ATTR}="${NAV_VALUE}"] > svg{display:none}
+button[data-${NAV_ATTR}="${NAV_VALUE}"]::before{
+  content:'';flex:none;
+  width:16px;height:16px;
+  background-color:currentColor;
+  -webkit-mask:var(--dshv-nav-mask) center / contain no-repeat;
+  mask:var(--dshv-nav-mask) center / contain no-repeat;
+}
+`
+
+    /** 找到设置导航里属于本插件的那一行并打标记；找不到就安静返回。 */
+    function decorateNavRow() {
+      try {
+        const buttons = document.querySelectorAll('button')
+        for (const button of buttons) {
+          if (button.dataset[NAV_ATTR] === NAV_VALUE) continue
+          if (button.querySelector(':scope > svg') === null) continue
+          const label = button.querySelector(':scope > span')
+          if (label === null || label.textContent.trim() !== NAV_LABEL) continue
+          const list = button.parentElement
+          if (list === null || !list.textContent.includes('通用设置')) continue
+          button.dataset[NAV_ATTR] = NAV_VALUE
+          button.style.setProperty('--dshv-nav-mask', NAV_MASK)
+        }
+      } catch {
+        /* 定位失败不影响设置页本身 */
+      }
+    }
+
+    /** 装上观察器：设置面板每次打开 DOM 都会重建，需要重新打标记。 */
+    function installNavIcons() {
+      try {
+        const style = document.createElement('style')
+        style.textContent = NAV_CSS
+        document.head.appendChild(style)
+        decorateNavRow()
+
+        let queued = false
+        const observer = new MutationObserver(() => {
+          if (queued) return
+          queued = true
+          requestAnimationFrame(() => {
+            queued = false
+            decorateNavRow()
+          })
+        })
+        observer.observe(document.body, { childList: true, subtree: true })
+
+        return () => {
+          observer.disconnect()
+          style.remove()
+        }
+      } catch {
+        return undefined
+      }
+    }
+
     return {
       inject: ['slots'],
       apply(ctx) {
+        ctx.effect(() => installNavIcons())
+
         ctx.slots.inject('conversation.chat.turnTail', () => ctx.slots.register({
           name: 'conversation.chat.turnTail',
           id: 'dsh-visual-turn',

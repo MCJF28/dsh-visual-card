@@ -22,8 +22,8 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 
 export const name = 'dsh-visual'
 
-/** 需要的服务：工具注册 + HTTP 路由（供客户端取卡片、改设置）。 */
-export const inject = ['tools', 'webServer']
+/** 需要的服务：工具注册 + HTTP 路由（供客户端取卡片、改设置）+ 斜杠命令。 */
+export const inject = ['tools', 'webServer', 'commands']
 
 /** 单次 HTML 上限，防止把巨大内容塞进对话。 */
 const MAX_HTML_CHARS = 200000
@@ -201,6 +201,35 @@ loadSettings()
 loadStore()
 
 export function apply(ctx) {
+  /**
+   * `/visual`：查看卡片存储情况。
+   *
+   * 命令只做「查询并回报」，不做设置修改 —— 改上限、清空都要点界面，
+   * 在命令里做会绕过二次确认，清空历史尤其不能一键发生。
+   */
+  ctx.commands.register({
+    name: 'visual',
+    description: '查看可视化卡片的存储占用',
+    handler: () => {
+      const s = storeStats()
+      const kb = s.bytes < 1024
+        ? `${s.bytes} B`
+        : s.bytes < 1024 * 1024
+          ? `${(s.bytes / 1024).toFixed(1)} KB`
+          : `${(s.bytes / 1024 / 1024).toFixed(1)} MB`
+      const lines = s.cards === 0
+        ? ['还没有保存过可视化卡片。']
+        : [
+            `已保存 ${s.cards} 张卡片，分布在 ${s.sessions} 个会话、${s.turns} 轮里，占用 ${kb}。`,
+            `上限：每个会话保留 ${settings.keepTurns} 轮，每轮最多 ${settings.maxPerTurn} 张，`
+              + `卡片高度不超过视口的 ${settings.maxHeightPercent}%。`,
+            `卡片脚本：${settings.allowScripts ? '允许执行' : '已禁用'}。`,
+          ]
+      lines.push('在「设置 → 可视化」里调整上限或清空历史。')
+      return { kind: 'success', text: lines.join('\n') }
+    },
+  })
+
   ctx.tools.register(defineTool({
     name: 'render_visual',
     description:
